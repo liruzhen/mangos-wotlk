@@ -127,11 +127,12 @@ bool Group::Create(ObjectGuid guid, const char* name)
 
         // store group in database
         CharacterDatabase.BeginTransaction();
-        CharacterDatabase.PExecute("DELETE FROM groups WHERE groupId ='%u'", m_Id);
+        CharacterDatabase.PExecute("DELETE FROM `groups` WHERE groupId ='%u'", m_Id);
         CharacterDatabase.PExecute("DELETE FROM group_member WHERE groupId ='%u'", m_Id);
 
-        CharacterDatabase.PExecute("INSERT INTO groups (groupId,leaderGuid,mainTank,mainAssistant,lootMethod,looterGuid,lootThreshold,icon1,icon2,icon3,icon4,icon5,icon6,icon7,icon8,groupType,difficulty,raiddifficulty) "
+        CharacterDatabase.PExecute("INSERT INTO `groups` (groupId,leaderGuid,mainTank,mainAssistant,lootMethod,looterGuid,lootThreshold,icon1,icon2,icon3,icon4,icon5,icon6,icon7,icon8,groupType,difficulty,raiddifficulty) "
                                    "VALUES ('%u','%u','%u','%u','%u','%u','%u','" UI64FMTD "','" UI64FMTD "','" UI64FMTD "','" UI64FMTD "','" UI64FMTD "','" UI64FMTD "','" UI64FMTD "','" UI64FMTD "','%u','%u','%u')",
+
                                    m_Id, m_leaderGuid.GetCounter(), m_mainTankGuid.GetCounter(), m_mainAssistantGuid.GetCounter(), uint32(m_lootMethod),
                                    m_masterLooterGuid.GetCounter(), uint32(m_lootThreshold),
                                    m_targetIcons[0].GetRawValue(), m_targetIcons[1].GetRawValue(),
@@ -155,7 +156,7 @@ bool Group::Create(ObjectGuid guid, const char* name)
 bool Group::LoadGroupFromDB(Field* fields)
 {
     //                                          0         1              2           3           4              5      6      7      8      9      10     11     12     13         14          15              16          17
-    // result = CharacterDatabase.Query("SELECT mainTank, mainAssistant, lootMethod, looterGuid, lootThreshold, icon1, icon2, icon3, icon4, icon5, icon6, icon7, icon8, groupType, difficulty, raiddifficulty, leaderGuid, groupId FROM groups");
+    // result = CharacterDatabase.Query("SELECT mainTank, mainAssistant, lootMethod, looterGuid, lootThreshold, icon1, icon2, icon3, icon4, icon5, icon6, icon7, icon8, groupType, difficulty, raiddifficulty, leaderGuid, groupId FROM `groups`");
 
     m_Id = fields[17].GetUInt32();
     m_leaderGuid = ObjectGuid(HIGHGUID_PLAYER, fields[16].GetUInt32());
@@ -228,7 +229,7 @@ void Group::ConvertToRaid()
     _initRaidSubGroupsCounter();
 
     if (!isBattleGroup())
-        CharacterDatabase.PExecute("UPDATE groups SET groupType = %u WHERE groupId='%u'", uint8(m_groupType), m_Id);
+        CharacterDatabase.PExecute("UPDATE `groups` SET groupType = %u WHERE groupId='%u'", uint8(m_groupType), m_Id);
     SendUpdate();
 
     // update quest related GO states (quest activity dependent from raid membership)
@@ -492,7 +493,7 @@ void Group::Disband(bool hideDestroy)
     if (!isBattleGroup())
     {
         CharacterDatabase.BeginTransaction();
-        CharacterDatabase.PExecute("DELETE FROM groups WHERE groupId='%u'", m_Id);
+        CharacterDatabase.PExecute("DELETE FROM `groups` WHERE groupId='%u'", m_Id);
         CharacterDatabase.PExecute("DELETE FROM group_member WHERE groupId='%u'", m_Id);
         CharacterDatabase.CommitTransaction();
         ResetInstances(INSTANCE_RESET_GROUP_DISBAND, false, nullptr);
@@ -539,7 +540,7 @@ static void GetDataForXPAtKill_helper(Player* player, Unit const* victim, uint32
 
 void Group::GetDataForXPAtKill(Unit const* victim, uint32& count, uint32& sum_level, Player*& member_with_max_level, Player*& not_gray_member_with_max_level, Player* additional)
 {
-    for (GroupReference* itr = GetFirstMember(); itr != nullptr; itr = itr->next())
+    for (GroupReference const* itr = GetFirstMember(); itr != nullptr; itr = itr->next())
     {
         Player* member = itr->getSource();
         if (!member || !member->isAlive())                  // only for alive
@@ -957,7 +958,7 @@ void Group::_setLeader(ObjectGuid guid)
         Player::ConvertInstancesToGroup(player, this, slot->guid);
 
         // update the group leader
-        CharacterDatabase.PExecute("UPDATE groups SET leaderGuid='%u' WHERE groupId='%u'", slot_lowguid, m_Id);
+        CharacterDatabase.PExecute("UPDATE `groups` SET leaderGuid='%u' WHERE groupId='%u'", slot_lowguid, m_Id);
         CharacterDatabase.CommitTransaction();
     }
     _updateLeaderFlag(true);
@@ -1019,7 +1020,7 @@ bool Group::_setMainTank(ObjectGuid guid)
     m_mainTankGuid = guid;
 
     if (!isBattleGroup())
-        CharacterDatabase.PExecute("UPDATE groups SET mainTank='%u' WHERE groupId='%u'", m_mainTankGuid.GetCounter(), m_Id);
+        CharacterDatabase.PExecute("UPDATE `groups` SET mainTank='%u' WHERE groupId='%u'", m_mainTankGuid.GetCounter(), m_Id);
 
     return true;
 }
@@ -1042,7 +1043,7 @@ bool Group::_setMainAssistant(ObjectGuid guid)
     m_mainAssistantGuid = guid;
 
     if (!isBattleGroup())
-        CharacterDatabase.PExecute("UPDATE groups SET mainAssistant='%u' WHERE groupId='%u'",
+        CharacterDatabase.PExecute("UPDATE `groups` SET mainAssistant='%u' WHERE groupId='%u'",
                                    m_mainAssistantGuid.GetCounter(), m_Id);
 
     return true;
@@ -1189,7 +1190,7 @@ void Group::SetDungeonDifficulty(Difficulty difficulty)
 {
     m_dungeonDifficulty = difficulty;
     if (!isBattleGroup())
-        CharacterDatabase.PExecute("UPDATE groups SET difficulty = %u WHERE groupId='%u'", m_dungeonDifficulty, m_Id);
+        CharacterDatabase.PExecute("UPDATE `groups` SET difficulty = %u WHERE groupId='%u'", m_dungeonDifficulty, m_Id);
 
     for (GroupReference* itr = GetFirstMember(); itr != nullptr; itr = itr->next())
     {
@@ -1448,35 +1449,40 @@ static void RewardGroupAtKill_helper(Player* pGroupGuy, Unit* pVictim, uint32 co
         pGroupGuy->RewardHonor(pVictim, count);
 
     // xp and reputation only in !PvP case
+    // xp and reputation only in !PvP case
     if (!PvP)
     {
-        float rate = group_rate * float(pGroupGuy->getLevel()) / sum_level;
+        if (pVictim->GetTypeId() == TYPEID_UNIT)
+        {
+            Creature* creatureVictim = static_cast<Creature*>(pVictim);
+            float rate = group_rate * float(pGroupGuy->getLevel()) / sum_level;
 
-        // if is in dungeon then all receive full reputation at kill
-        // rewarded any alive/dead/near_corpse group member
-        pGroupGuy->RewardReputation(pVictim, is_dungeon ? 1.0f : rate);
+            // if is in dungeon then all receive full reputation at kill
+            // rewarded any alive/dead/near_corpse group member
+            pGroupGuy->RewardReputation(creatureVictim, is_dungeon ? 1.0f : rate);
 
-        // XP updated only for alive group member
-        if (pGroupGuy->isAlive() && not_gray_member_with_max_level &&
+            // XP updated only for alive group member
+            if (pGroupGuy->isAlive() && not_gray_member_with_max_level &&
                 pGroupGuy->getLevel() <= not_gray_member_with_max_level->getLevel())
-        {
-            uint32 itr_xp = (member_with_max_level == not_gray_member_with_max_level) ? uint32(xp * rate) : uint32((xp * rate / 2) + 1);
+            {
+                uint32 itr_xp = (member_with_max_level == not_gray_member_with_max_level) ? uint32(xp * rate) : uint32((xp * rate / 2) + 1);
 
-            pGroupGuy->GiveXP(itr_xp, pVictim);
-            if (Pet* pet = pGroupGuy->GetPet())
-                // TODO: Pets need to get exp based on their level diff to the target, not the owners.
-                // the whole RewardGroupAtKill needs a rewrite to match up with this anyways:
-                // http://wowwiki.wikia.com/wiki/Formulas:Mob_XP?oldid=228414
-                pet->GivePetXP(itr_xp / 2);
-        }
+                pGroupGuy->GiveXP(itr_xp, creatureVictim, group_rate);
+                if (Pet* pet = pGroupGuy->GetPet())
+                    // TODO: Pets need to get exp based on their level diff to the target, not the owners.
+                    // the whole RewardGroupAtKill needs a rewrite to match up with this anyways:
+                    // http://wowwiki.wikia.com/wiki/Formulas:Mob_XP?oldid=228414
+                    pet->GivePetXP(itr_xp);
+            }
 
-        // quest objectives updated only for alive group member or dead but with not released body
-        if (pGroupGuy->isAlive() || !pGroupGuy->HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_GHOST))
-        {
-            // normal creature (not pet/etc) can be only in !PvP case
-            if (pVictim->GetTypeId() == TYPEID_UNIT)
-                if (CreatureInfo const* normalInfo = ObjectMgr::GetCreatureTemplate(pVictim->GetEntry()))
-                    pGroupGuy->KilledMonster(normalInfo, pVictim->GetObjectGuid());
+            // quest objectives updated only for alive group member or dead but with not released body
+            if (pGroupGuy->isAlive() || !pGroupGuy->HasFlag(PLAYER_FLAGS, PLAYER_FLAGS_GHOST))
+            {
+                // normal creature (not pet/etc) can be only in !PvP case
+                if (creatureVictim->GetTypeId() == TYPEID_UNIT)
+                    if (CreatureInfo const* normalInfo = creatureVictim->GetCreatureInfo())
+                        pGroupGuy->KilledMonster(normalInfo, creatureVictim->GetObjectGuid());
+            }
         }
     }
 }
@@ -1503,7 +1509,7 @@ void Group::RewardGroupAtKill(Unit* pVictim, Player* player_tap)
     if (member_with_max_level)
     {
         /// not get Xp in PvP or no not gray players in group
-        uint32 xp = (PvP || !not_gray_member_with_max_level) ? 0 : MaNGOS::XP::Gain(not_gray_member_with_max_level, pVictim);
+        uint32 xp = (PvP || !not_gray_member_with_max_level || pVictim->GetTypeId() != TYPEID_UNIT) ? 0 : MaNGOS::XP::Gain(not_gray_member_with_max_level, static_cast<Creature*>(pVictim));
 
         /// skip in check PvP case (for speed, not used)
         bool is_raid = PvP ? false : sMapStore.LookupEntry(pVictim->GetMapId())->IsRaid() && isRaidGroup();
